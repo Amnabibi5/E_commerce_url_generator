@@ -1,8 +1,3 @@
-# app.py
-
-import tkinter as tk
-from tkinter import ttk, messagebox
-import webbrowser
 import openai
 import json
 import asyncio
@@ -119,48 +114,3 @@ def on_scrape_selected():
             price = result.get('price', 'N/A')
             output_text.insert(tk.END, f"URL: {url}\nTitle: {title}\nHeading: {heading}\nPrice: {price}\n\n{'-'*80}\n")
 
-# ✅ GUI Setup
-root = tk.Tk()
-root.title("🛒 Real-Time Product URL Finder & Scraper")
-root.geometry("980x720")
-root.configure(bg="#f7f5fc")
-
-style = ttk.Style()
-style.theme_use("clam")
-style.configure("TLabel", font=("Arial", 11), background="#f7f5fc")
-style.configure("TButton", font=("Arial", 10, "bold"))
-
-main_frame = ttk.Frame(root, padding=15)
-main_frame.pack(fill=tk.BOTH, expand=True)
-
-ttk.Label(main_frame, text=" Enter Product Name:").grid(row=0, column=0, sticky="w")
-product_entry = ttk.Entry(main_frame, width=50)
-product_entry.grid(row=0, column=1, padx=10, pady=5)
-
-ttk.Label(main_frame, text=" Number of URLs:").grid(row=1, column=0, sticky="w")
-num_entry = ttk.Entry(main_frame, width=10)
-num_entry.grid(row=1, column=1, padx=10, pady=5, sticky="w")
-
-ttk.Button(main_frame, text=" Generate URLs", command=on_generate_urls).grid(row=2, column=0, pady=10)
-ttk.Button(main_frame, text=" Scrape Selected URLs", command=on_scrape_selected).grid(row=2, column=1, pady=10, sticky="w")
-
-# Checkbox scroll area
-checkbox_canvas = tk.Canvas(main_frame, height=180, bg="#ffffff", bd=1, relief="sunken")
-checkbox_scrollbar = ttk.Scrollbar(main_frame, orient="vertical", command=checkbox_canvas.yview)
-checkbox_scrollable_frame = ttk.Frame(checkbox_canvas)
-
-checkbox_scrollable_frame.bind("<Configure>", lambda e: checkbox_canvas.configure(scrollregion=checkbox_canvas.bbox("all")))
-checkbox_canvas.create_window((0, 0), window=checkbox_scrollable_frame, anchor="nw")
-checkbox_canvas.configure(yscrollcommand=checkbox_scrollbar.set)
-
-checkbox_canvas.grid(row=3, column=0, columnspan=2, sticky="nsew", pady=10)
-checkbox_scrollbar.grid(row=3, column=2, sticky="ns", padx=(5, 0))
-checkbox_frame = checkbox_scrollable_frame
-
-output_text = tk.Text(main_frame, wrap=tk.WORD, height=20, bg="#fdfdfd", font=("Consolas", 10), relief="solid", bd=1)
-output_text.grid(row=4, column=0, columnspan=3, padx=10, pady=10, sticky="nsew")
-
-main_frame.grid_rowconfigure(4, weight=1)
-main_frame.grid_columnconfigure(1, weight=1)
-
-root.mainloop()
