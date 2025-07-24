@@ -1,0 +1,8 @@
+openai
+crawl4ai
+nest_asyncio
+tk
+openai
+crawl4ai
+nest_asyncio
+tk
