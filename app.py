@@ -34,7 +34,7 @@ Only return JSON. No explanation.
 """
     try:
         response = client.chat.completions.create(
-            model="gpt-3.5-turbo",  # ✅ Cheaper model
+            model="gpt-3.5-turbo",
             messages=[{"role": "user", "content": prompt}],
             temperature=0.3,
             max_tokens=500
@@ -86,9 +86,9 @@ if st.sidebar.button("Generate URLs"):
 # Display generated URLs and checkboxes
 if "generated_urls" in st.session_state:
     st.subheader("🔗 Generated URLs")
-    for url in st.session_state.generated_urls:
+    for i, url in enumerate(st.session_state.generated_urls):
         col1, col2 = st.columns([0.05, 0.95])
-        selected = col1.checkbox("", key=url, value=st.session_state.get(url, False))
+        selected = col1.checkbox(f"{i+1}", key=url, value=st.session_state.get(url, False))  # ✅ FIXED LABEL
         col2.markdown(f"[{url}]({url})")
         st.session_state[url] = selected
 
