@@ -1,17 +1,24 @@
 import streamlit as st
-import openai
 import json
 import asyncio
 import nest_asyncio
+import os
+from openai import OpenAI
 from crawl4ai import AsyncWebCrawler, CrawlerRunConfig, BrowserConfig
 
-# Enable nested async loops
+# Enable nested async loops for Streamlit
 nest_asyncio.apply()
 
-# Set your OpenAI API key
-openai.api_key = "your-openai-key-here"  # 🔒 Replace securely
+# Initialize OpenAI client
+client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))  # 🔐 Use env variable for security
 
-# Generate URLs using GPT
+# ⚠️ Usage warning
+st.set_page_config(page_title="🛒 Ecommerce URL Generator", layout="wide")
+st.title("🛒 Ecommerce URL Generator & Scraper")
+st.warning("⚠️ This app uses the developer's OpenAI credits to generate URLs. Please use responsibly. Excessive use may disable the app.")
+st.write("Enter a product name and number of URLs to generate real shopping links. Optionally scrape selected URLs for product info.")
+
+# Generate URLs using GPT-3.5
 def generate_real_urls(product_name, num_urls):
     prompt = f"""
 You are a product researcher. Generate {num_urls} real URLs for buying "{product_name}" from Amazon, Flipkart, Daraz, etc.
@@ -26,13 +33,13 @@ Return only JSON format like this:
 Only return JSON. No explanation.
 """
     try:
-        response = openai.ChatCompletion.create(
-            model="gpt-4",
+        response = client.chat.completions.create(
+            model="gpt-3.5-turbo",  # ✅ Cheaper model
             messages=[{"role": "user", "content": prompt}],
             temperature=0.3,
             max_tokens=500
         )
-        content = response.choices[0].message["content"]
+        content = response.choices[0].message.content
         data = json.loads(content)
         return data.get("URLs", [])[:num_urls]
     except Exception as e:
@@ -58,11 +65,6 @@ def scrape_url_info(url):
         return asyncio.run(async_scrape_url(url))
     except Exception as e:
         return {"error": str(e)}
-
-# Streamlit UI
-st.set_page_config(page_title="🛒 Ecommerce URL Generator", layout="wide")
-st.title("🛒 Ecommerce URL Generator & Scraper")
-st.write("Enter a product name and number of URLs to generate real shopping links. Optionally scrape selected URLs for product info.")
 
 # Sidebar inputs
 st.sidebar.header("🔧 Input Settings")
@@ -96,4 +98,4 @@ if st.sidebar.button("Generate URLs"):
                     st.write(f"**Price:** {result.get('price', 'N/A')}")
                     st.markdown("---")
     else:
-        st.error(urls[0])
+        st.error("❌ Failed to generate URLs. This may be due to API limits, missing credits, or invalid key.")
