@@ -9,8 +9,8 @@ from crawl4ai import AsyncWebCrawler, CrawlerRunConfig, BrowserConfig
 # Enable nested async loops for Streamlit
 nest_asyncio.apply()
 
-# Initialize OpenAI client
-client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))  # 🔐 Use env variable for security
+# Initialize OpenAI client securely
+client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))  # 🔐 Add this in Streamlit Secrets
 
 # ⚠️ Usage warning
 st.set_page_config(page_title="🛒 Ecommerce URL Generator", layout="wide")
@@ -74,28 +74,37 @@ num_urls = st.sidebar.slider("Number of URLs", min_value=1, max_value=10, value=
 # Generate URLs
 if st.sidebar.button("Generate URLs"):
     urls = generate_real_urls(product_name, num_urls)
-    if urls and not urls[0].startswith("Error"):
-        st.subheader("🔗 Generated URLs")
-        selected_urls = []
-        for url in urls:
-            col1, col2 = st.columns([0.05, 0.95])
-            selected = col1.checkbox("", key=url)
-            col2.markdown(f"[{url}]({url})")
-            if selected:
-                selected_urls.append(url)
 
-        # Scrape selected URLs
-        if selected_urls:
-            st.subheader("🧠 Scraped Info")
-            for url in selected_urls:
-                result = scrape_url_info(url)
-                if "error" in result:
-                    st.error(f"URL: {url}\nError: {result['error']}")
-                else:
-                    st.markdown(f"**URL:** {url}")
-                    st.write(f"**Title:** {result.get('title', 'N/A')}")
-                    st.write(f"**Heading:** {result.get('heading', 'N/A')}")
-                    st.write(f"**Price:** {result.get('price', 'N/A')}")
-                    st.markdown("---")
+    if urls and not urls[0].startswith("Error"):
+        st.session_state.generated_urls = urls
+        # Reset checkbox states
+        for url in urls:
+            st.session_state[url] = False
     else:
         st.error("❌ Failed to generate URLs. This may be due to API limits, missing credits, or invalid key.")
+
+# Display generated URLs and checkboxes
+if "generated_urls" in st.session_state:
+    st.subheader("🔗 Generated URLs")
+    for url in st.session_state.generated_urls:
+        col1, col2 = st.columns([0.05, 0.95])
+        selected = col1.checkbox("", key=url, value=st.session_state.get(url, False))
+        col2.markdown(f"[{url}]({url})")
+        st.session_state[url] = selected
+
+    # Collect selected URLs
+    selected_urls = [url for url in st.session_state.generated_urls if st.session_state.get(url)]
+
+    # Scrape selected URLs
+    if selected_urls:
+        st.subheader("🧠 Scraped Info")
+        for url in selected_urls:
+            result = scrape_url_info(url)
+            if "error" in result:
+                st.error(f"URL: {url}\nError: {result['error']}")
+            else:
+                st.markdown(f"**URL:** {url}")
+                st.write(f"**Title:** {result.get('title', 'N/A')}")
+                st.write(f"**Heading:** {result.get('heading', 'N/A')}")
+                st.write(f"**Price:** {result.get('price', 'N/A')}")
+                st.markdown("---")
