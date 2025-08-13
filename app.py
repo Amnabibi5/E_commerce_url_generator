@@ -1,27 +1,27 @@
 import streamlit as st
 import pandas as pd
 import urllib.parse
+from bs4 import BeautifulSoup
+from playwright.sync_api import sync_playwright
 
 st.set_page_config(page_title="E-commerce URL Generator", layout="wide")
 
 st.title("🛍️ E-commerce URL Generator")
-st.markdown("Generate search URLs for multiple e-commerce platforms based on your keywords.")
+st.markdown("Generate and scrape search URLs for multiple e-commerce platforms.")
 
 # Sidebar input
 st.sidebar.header("🔍 Search Settings")
 keywords = st.sidebar.text_area("Enter keywords (one per line)", height=150)
 platforms = st.sidebar.multiselect(
     "Select platforms",
-    ["Amazon", "Daraz", "eBay", "AliExpress"],
+    ["Amazon", "Daraz"],
     default=["Amazon", "Daraz"]
 )
 
 # URL templates
 url_templates = {
     "Amazon": "https://www.amazon.com/s?k={query}",
-    "Daraz": "https://www.daraz.pk/catalog/?q={query}",
-    "eBay": "https://www.ebay.com/sch/i.html?_nkw={query}",
-    "AliExpress": "https://www.aliexpress.com/wholesale?SearchText={query}"
+    "Daraz": "https://www.daraz.pk/catalog/?q={query}"
 }
 
 # Generate URLs
@@ -34,7 +34,7 @@ def generate_urls(keywords, platforms):
             urls.append(url)
     return urls
 
-# Main logic
+# Generate button
 if st.sidebar.button("Generate URLs"):
     if not keywords.strip():
         st.warning("Please enter at least one keyword.")
@@ -45,45 +45,27 @@ if st.sidebar.button("Generate URLs"):
         generated_urls = generate_urls(keyword_list, platforms)
         st.session_state.generated_urls = generated_urls
 
-# Display results
+# Display URLs with checkboxes
 if "generated_urls" in st.session_state:
     st.subheader("🔗 Generated URLs")
     for i, url in enumerate(st.session_state.generated_urls):
         col1, col2 = st.columns([0.05, 0.95])
-        
-        # Use a safe key instead of the full URL
         safe_key = f"url_{i}"
-        
-        # Create checkbox and let Streamlit handle session state
         selected = col1.checkbox(f"{i+1}", key=safe_key, value=st.session_state.get(safe_key, False))
-        
-        # Display the URL as a clickable link
         col2.markdown(f"[{url}]({url})")
 
-    # Collect selected URLs
     selected_urls = [
         st.session_state.generated_urls[i]
         for i in range(len(st.session_state.generated_urls))
         if st.session_state.get(f"url_{i}", False)
     ]
 
-    if selected_urls:
-        st.markdown("### ✅ Selected URLs")
-        for url in selected_urls:
-            st.markdown(f"- [{url}]({url})")
-            import requests
-from bs4 import BeautifulSoup
-
-# Common headers
-HEADERS = {
-    "User-Agent": "Mozilla/5.0",
-    "Accept-Language": "en-US,en;q=0.9"
-}
-
-# Amazon scraper
-def scrape_amazon(url):
-    response = requests.get(url, headers=HEADERS)
-    soup = BeautifulSoup(response.content, "html.parser")
+# Scraping functions using Playwright
+def scrape_amazon(url, page):
+    page.goto(url)
+    page.wait_for_selector("[data-component-type='s-search-result']")
+    html = page.content()
+    soup = BeautifulSoup(html, "html.parser")
 
     products = []
     for item in soup.select("[data-component-type='s-search-result']"):
@@ -103,15 +85,16 @@ def scrape_amazon(url):
             products.append(product)
     return products
 
-# Daraz scraper
-def scrape_daraz(url):
-    response = requests.get(url, headers=HEADERS)
-    soup = BeautifulSoup(response.content, "html.parser")
+def scrape_daraz(url, page):
+    page.goto(url)
+    page.wait_for_selector("div[data-qa-locator='product-item']")
+    html = page.content()
+    soup = BeautifulSoup(html, "html.parser")
 
     products = []
-    for item in soup.select(".gridItem--Yd0sa"):
-        title = item.select_one(".title--WbWjP")
-        price = item.select_one(".price--NVB62")
+    for item in soup.select("div[data-qa-locator='product-item']"):
+        title = item.select_one("div[data-qa-locator='product-title']")
+        price = item.select_one("div[data-qa-locator='product-price']")
 
         if title and price:
             products.append({
@@ -122,31 +105,34 @@ def scrape_daraz(url):
             })
     return products
 
-# Dispatcher
-def scrape_url(url):
+def scrape_url(url, page):
     if "amazon.com" in url:
-        return scrape_amazon(url)
+        return scrape_amazon(url, page)
     elif "daraz.pk" in url:
-        return scrape_daraz(url)
+        return scrape_daraz(url, page)
     else:
-        st.warning(f"Scraping not yet supported for: {url}")
+        st.warning(f"Scraping not supported for: {url}")
         return []
 
-# Scrape button
+# Scrape and display results
 if selected_urls:
     if st.button("Scrape Selected URLs"):
         all_data = []
+        with sync_playwright() as p:
+            browser = p.chromium.launch(headless=True)
+            page = browser.new_page()
 
-        for url in selected_urls:
-            scraped = scrape_url(url)
-            all_data.extend(scraped)
+            for url in selected_urls:
+                scraped = scrape_url(url, page)
+                all_data.extend(scraped)
+
+            browser.close()
 
         if all_data:
             df = pd.DataFrame(all_data)
             st.subheader("🧹 Scraped & Cleaned Data")
             st.dataframe(df)
 
-            # CSV download
             csv = df.to_csv(index=False).encode("utf-8")
             st.download_button(
                 label="📥 Download CSV",
