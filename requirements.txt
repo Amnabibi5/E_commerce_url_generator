@@ -5,4 +5,7 @@ streamlit
 openai
 nest_asyncio
 crawl4ai
+playwright
+pandas
+beautifulsoup4
 
