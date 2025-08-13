@@ -1,8 +1,8 @@
 openai
 crawl4ai
 nest_asyncio
-tk
+streamlit
 openai
-crawl4ai
 nest_asyncio
-tk
+crawl4ai
+
