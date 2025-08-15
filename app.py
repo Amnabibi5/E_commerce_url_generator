@@ -1,149 +1,120 @@
 import streamlit as st
-import pandas as pd
-import urllib.parse
+import requests
 from bs4 import BeautifulSoup
-from playwright.sync_api import sync_playwright
+import openai
+import json
+import pandas as pd
+import re
 
-# 📌 Page Config
-st.set_page_config(page_title="E-commerce URL Generator", layout="wide")
-st.title("🛍️ E-commerce URL Generator")
-st.markdown("Generate and scrape search URLs for multiple e-commerce platforms.")
+# Set your OpenAI API key
+openai.api_key = st.secrets["OPENAI_API_KEY"] if "OPENAI_API_KEY" in st.secrets else ""
 
-# 📌 Sidebar Inputs
-st.sidebar.header("🔍 Search Settings")
-keywords = st.sidebar.text_area("Enter keywords (one per line)", height=150)
-platforms = st.sidebar.multiselect(
-    "Select platforms",
-    ["Amazon", "Daraz"],
-    default=["Amazon", "Daraz"]
-)
+# ------------------ LLM URL Generator ------------------
 
-# 📌 URL Templates
-url_templates = {
-    "Amazon": "https://www.amazon.com/s?k={query}",
-    "Daraz": "https://www.daraz.pk/catalog/?q={query}"
-}
+def generate_real_urls(product_name, num_urls):
+    prompt = f"""
+You are a product researcher. Generate {num_urls} real URLs for buying "{product_name}" from Amazon, Flipkart, Daraz, etc.
 
-# 📌 Generate URLs
-def generate_urls(keywords, platforms):
-    urls = []
-    for keyword in keywords:
-        encoded = urllib.parse.quote_plus(keyword.strip())
-        for platform in platforms:
-            url = url_templates[platform].format(query=encoded)
-            urls.append(url)
-    return urls
+Return only JSON format like this:
+{{
+  "URLs": [
+    "https://example.com/product1",
+    "https://example.com/product2"
+  ]
+}}
+Only return JSON. No explanation.
+"""
+    try:
+        response = openai.ChatCompletion.create(
+            model="gpt-4",
+            messages=[{"role": "user", "content": prompt}],
+            temperature=0.3,
+            max_tokens=500
+        )
+        content = response.choices[0].message["content"]
+        match = re.search(r'\{.*\}', content, re.DOTALL)
+        if match:
+            data = json.loads(match.group())
+            return data.get("URLs", [])[:num_urls]
+    except Exception as e:
+        st.error(f"Error generating URLs: {e}")
+    return []
 
-if st.sidebar.button("Generate URLs"):
-    if not keywords.strip():
-        st.warning("Please enter at least one keyword.")
-    elif not platforms:
-        st.warning("Please select at least one platform.")
-    else:
-        keyword_list = keywords.strip().split("\n")
-        generated_urls = generate_urls(keyword_list, platforms)
-        st.session_state["generated_urls"] = generated_urls
-        st.success("URLs generated successfully!")
+# ------------------ Scraping Logic ------------------
 
-# 📌 Display URLs with Checkboxes
+def scrape_url_info(url):
+    try:
+        headers = {"User-Agent": "Mozilla/5.0"}
+        response = requests.get(url, headers=headers, timeout=10)
+        soup = BeautifulSoup(response.text, 'html.parser')
+
+        title = soup.title.string.strip() if soup.title else "No title"
+        heading = soup.find(['h1', 'h2', 'h3'])
+        heading_text = heading.get_text(strip=True) if heading else "No heading"
+
+        meta_desc = soup.find("meta", attrs={"name": "description"})
+        description = meta_desc["content"].strip() if meta_desc and "content" in meta_desc.attrs else "No description"
+
+        price = "Not found"
+        for tag in soup.find_all(text=True):
+            tag = tag.strip()
+            if any(currency in tag for currency in ["$", "Rs", "₹"]) and any(char.isdigit() for char in tag):
+                price = tag
+                break
+
+        return {
+            "URL": url,
+            "Title": title,
+            "Heading": heading_text,
+            "Description": description,
+            "Price": price
+        }
+    except Exception as e:
+        return {
+            "URL": url,
+            "Title": "Error",
+            "Heading": "Error",
+            "Description": str(e),
+            "Price": "Error"
+        }
+
+# ------------------ Streamlit UI ------------------
+
+st.set_page_config(page_title="🛒 Product URL Finder", layout="wide")
+st.title("🛒 Real-Time Product URL Finder & Scraper")
+
+product_name = st.text_input("Enter product name", "laptop")
+num_urls = st.selectbox("Number of URLs to generate", [5, 10])
+
+if st.button("Generate URLs"):
+    with st.spinner("Generating URLs using GPT..."):
+        urls = generate_real_urls(product_name, num_urls)
+        if urls:
+            st.session_state["urls"] = urls
+        else:
+            st.warning("No URLs generated.")
+
+# ------------------ Display Checkboxes ------------------
+
 selected_urls = []
-if "generated_urls" in st.session_state:
-    st.subheader("🔗 Generated URLs")
-    for i, url in enumerate(st.session_state["generated_urls"]):
-        col1, col2 = st.columns([0.05, 0.95])
-        safe_key = f"url_{i}"
-        selected = col1.checkbox(f"{i+1}", key=safe_key, value=st.session_state.get(safe_key, False))
-        col2.markdown(f"[{url}]({url})")
-        if selected:
+if "urls" in st.session_state:
+    st.subheader("✅ Select URLs to Scrape")
+    for i, url in enumerate(st.session_state["urls"]):
+        if st.checkbox(url, key=f"url_{i}"):
             selected_urls.append(url)
 
-# 📌 Scraping Functions
-def scrape_amazon(url, page):
-    page.goto(url)
-    page.wait_for_selector("[data-component-type='s-search-result']")
-    html = page.content()
-    soup = BeautifulSoup(html, "html.parser")
+# ------------------ Scrape & Export ------------------
 
-    products = []
-    for item in soup.select("[data-component-type='s-search-result']"):
-        title = item.select_one("h2 span")
-        price_whole = item.select_one(".a-price-whole")
-        price_fraction = item.select_one(".a-price-fraction")
-
-        if title:
-            product = {
-                "Platform": "Amazon",
-                "Title": title.get_text(strip=True),
-                "Price": None,
-                "URL": url
-            }
-            if price_whole and price_fraction:
-                product["Price"] = f"{price_whole.get_text(strip=True)}.{price_fraction.get_text(strip=True)}"
-            products.append(product)
-    return products
-
-def scrape_daraz(url, page):
-    page.goto(url)
-    page.wait_for_selector("div[data-qa-locator='product-item']")
-    html = page.content()
-    soup = BeautifulSoup(html, "html.parser")
-
-    products = []
-    for item in soup.select("div[data-qa-locator='product-item']"):
-        title = item.select_one("div[data-qa-locator='product-title']")
-        price = item.select_one("div[data-qa-locator='product-price']")
-
-        if title and price:
-            products.append({
-                "Platform": "Daraz",
-                "Title": title.get_text(strip=True),
-                "Price": price.get_text(strip=True),
-                "URL": url
-            })
-    return products
-
-def scrape_url(url, page):
-    if "amazon.com" in url:
-        return scrape_amazon(url, page)
-    elif "daraz.pk" in url:
-        return scrape_daraz(url, page)
-    else:
-        st.warning(f"Scraping not supported for: {url}")
-        return []
-
-# 📌 Scrape Selected URLs
-def handle_scraping(urls):
-    all_data = []
-    with sync_playwright() as p:
-        browser = p.chromium.launch(headless=True)
-        page = browser.new_page()
-
-        for url in urls:
-            st.write(f"Scraping: {url}")
-            scraped = scrape_url(url, page)
-            all_data.extend(scraped)
-
-        browser.close()
-    return all_data
-
-# 📌 Trigger Scraping
 if selected_urls:
     if st.button("Scrape Selected URLs"):
-        scraped_data = handle_scraping(selected_urls)
-
-        if scraped_data:
-            df = pd.DataFrame(scraped_data)
-            st.subheader("🧹 Scraped & Cleaned Data")
+        with st.spinner("Scraping selected URLs..."):
+            results = [scrape_url_info(url) for url in selected_urls]
+            df = pd.DataFrame(results)
+            st.success("Scraping complete!")
             st.dataframe(df)
 
             csv = df.to_csv(index=False).encode("utf-8")
-            st.download_button(
-                label="📥 Download CSV",
-                data=csv,
-                file_name="scraped_products.csv",
-                mime="text/csv"
-            )
-        else:
-            st.info("No data scraped. Try different URLs or check your internet connection.")
+            st.download_button("📥 Download CSV", csv, "scraped_results.csv", "text/csv")
+
 
 
