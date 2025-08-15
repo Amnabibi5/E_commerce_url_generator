@@ -1,6 +1,7 @@
-# 🛒 Real-Time Product URL Finder & Web Scraper
+# 🛒 Ecommerce URL Generator & Scraper (Streamlit App)
 
-A Python GUI app that uses GPT-4 to generate real URLs from e-commerce platforms (Amazon, Flipkart, Daraz, etc.) and scrape essential data like product type, category (men/women), shoe size, and price using Crawl4AI.
+A Python web app built with **Streamlit** that uses **GPT-4** to generate real product URLs from ecommerce platforms like **Amazon**, **Flipkart**, **Daraz**, and more. It then scrapes essential product data — including title, category (men/women), price, and description — using **Playwright** and **BeautifulSoup**.
+
 
 ## 🙏 Dedication
 
@@ -8,18 +9,28 @@ This project is dedicated to our late teacher [**Izaz Ahmed.ai**](https://github
 
 ## 📌 Features
 
-* Enter a product name and number of URLs to fetch
-* Get real product page links using GPT-4
-* Select and scrape pages for:
+- 🔍 Enter a product name and specify the number of URLs to fetch
+- 🤖 Generate real product page links using GPT-4
+- ✅ Select and scrape pages for:
+  - Product title
+  - Category (Men/Women)
+  - Price
+  - Description
+- 📤 Export scraped data to CSV
+- 🌐 Web-based GUI built with Streamlit
 
-  * Product title
-  * Gender category (Men/Women)
-  * Shoe size
-  * Price
-* Clean and responsive Tkinter GUI
+🧠 Built With
+Streamlit
 
-## 🚀 Installation
+OpenAI GPT-4
 
+Playwright
+
+BeautifulSoup
+
+Pandas
+
+[![Open in Streamlit](https://static.streamlit.io/badges/streamlit_badge_black_white.svg)](https://ecommerceurlgenerator-3ztdey8bh7cm74g4venh9b.streamlit.app/)
 
 
 
