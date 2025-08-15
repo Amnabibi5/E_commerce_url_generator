@@ -1,13 +1,14 @@
 import streamlit as st
 import requests
 from bs4 import BeautifulSoup
-import openai
+from openai import OpenAI
 import json
 import pandas as pd
 import re
 
 # Set your OpenAI API key
-openai.api_key = st.secrets["OPENAI_API_KEY"] if "OPENAI_API_KEY" in st.secrets else ""
+openai_api_key = st.secrets["OPENAI_API_KEY"] if "OPENAI_API_KEY" in st.secrets else ""
+client = OpenAI(api_key=openai_api_key)
 
 # ------------------ LLM URL Generator ------------------
 
@@ -25,13 +26,13 @@ Return only JSON format like this:
 Only return JSON. No explanation.
 """
     try:
-        response = openai.ChatCompletion.create(
+        response = client.chat.completions.create(
             model="gpt-4",
             messages=[{"role": "user", "content": prompt}],
             temperature=0.3,
             max_tokens=500
         )
-        content = response.choices[0].message["content"]
+        content = response.choices[0].message.content
         match = re.search(r'\{.*\}', content, re.DOTALL)
         if match:
             data = json.loads(match.group())
@@ -115,6 +116,7 @@ if selected_urls:
 
             csv = df.to_csv(index=False).encode("utf-8")
             st.download_button("📥 Download CSV", csv, "scraped_results.csv", "text/csv")
+
 
 
 
