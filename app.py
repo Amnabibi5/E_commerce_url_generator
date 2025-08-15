@@ -4,12 +4,12 @@ import urllib.parse
 from bs4 import BeautifulSoup
 from playwright.sync_api import sync_playwright
 
+# 📌 Page Config
 st.set_page_config(page_title="E-commerce URL Generator", layout="wide")
-
 st.title("🛍️ E-commerce URL Generator")
 st.markdown("Generate and scrape search URLs for multiple e-commerce platforms.")
 
-# Sidebar input
+# 📌 Sidebar Inputs
 st.sidebar.header("🔍 Search Settings")
 keywords = st.sidebar.text_area("Enter keywords (one per line)", height=150)
 platforms = st.sidebar.multiselect(
@@ -18,13 +18,13 @@ platforms = st.sidebar.multiselect(
     default=["Amazon", "Daraz"]
 )
 
-# URL templates
+# 📌 URL Templates
 url_templates = {
     "Amazon": "https://www.amazon.com/s?k={query}",
     "Daraz": "https://www.daraz.pk/catalog/?q={query}"
 }
 
-# Generate URLs
+# 📌 Generate URLs
 def generate_urls(keywords, platforms):
     urls = []
     for keyword in keywords:
@@ -34,7 +34,6 @@ def generate_urls(keywords, platforms):
             urls.append(url)
     return urls
 
-# Generate button
 if st.sidebar.button("Generate URLs"):
     if not keywords.strip():
         st.warning("Please enter at least one keyword.")
@@ -43,24 +42,22 @@ if st.sidebar.button("Generate URLs"):
     else:
         keyword_list = keywords.strip().split("\n")
         generated_urls = generate_urls(keyword_list, platforms)
-        st.session_state.generated_urls = generated_urls
+        st.session_state["generated_urls"] = generated_urls
+        st.success("URLs generated successfully!")
 
-# Display URLs with checkboxes
+# 📌 Display URLs with Checkboxes
+selected_urls = []
 if "generated_urls" in st.session_state:
     st.subheader("🔗 Generated URLs")
-    for i, url in enumerate(st.session_state.generated_urls):
+    for i, url in enumerate(st.session_state["generated_urls"]):
         col1, col2 = st.columns([0.05, 0.95])
         safe_key = f"url_{i}"
         selected = col1.checkbox(f"{i+1}", key=safe_key, value=st.session_state.get(safe_key, False))
         col2.markdown(f"[{url}]({url})")
+        if selected:
+            selected_urls.append(url)
 
-    selected_urls = [
-        st.session_state.generated_urls[i]
-        for i in range(len(st.session_state.generated_urls))
-        if st.session_state.get(f"url_{i}", False)
-    ]
-
-# Scraping functions using Playwright
+# 📌 Scraping Functions
 def scrape_amazon(url, page):
     page.goto(url)
     page.wait_for_selector("[data-component-type='s-search-result']")
@@ -114,22 +111,28 @@ def scrape_url(url, page):
         st.warning(f"Scraping not supported for: {url}")
         return []
 
-# Scrape and display results
+# 📌 Scrape Selected URLs
+def handle_scraping(urls):
+    all_data = []
+    with sync_playwright() as p:
+        browser = p.chromium.launch(headless=True)
+        page = browser.new_page()
+
+        for url in urls:
+            st.write(f"Scraping: {url}")
+            scraped = scrape_url(url, page)
+            all_data.extend(scraped)
+
+        browser.close()
+    return all_data
+
+# 📌 Trigger Scraping
 if selected_urls:
     if st.button("Scrape Selected URLs"):
-        all_data = []
-        with sync_playwright() as p:
-            browser = p.chromium.launch(headless=True)
-            page = browser.new_page()
+        scraped_data = handle_scraping(selected_urls)
 
-            for url in selected_urls:
-                scraped = scrape_url(url, page)
-                all_data.extend(scraped)
-
-            browser.close()
-
-        if all_data:
-            df = pd.DataFrame(all_data)
+        if scraped_data:
+            df = pd.DataFrame(scraped_data)
             st.subheader("🧹 Scraped & Cleaned Data")
             st.dataframe(df)
 
@@ -142,4 +145,5 @@ if selected_urls:
             )
         else:
             st.info("No data scraped. Try different URLs or check your internet connection.")
+
 
