@@ -32,6 +32,7 @@ Pandas
 
 [![Open in Streamlit](https://static.streamlit.io/badges/streamlit_badge_black_white.svg)](https://ecommerceurlgenerator-3ztdey8bh7cm74g4venh9b.streamlit.app/)
 
+![App Screenshot](images/app_screenshot.png)
 
 
 
